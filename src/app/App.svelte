@@ -11,6 +11,7 @@
     import { notificationCount } from "./components/stores/notificationCount";
     import { notificationsList } from "./components/stores/notificationsList";
     import { fade } from "svelte/transition";
+    import { onDestroy } from "svelte";
 
     window.utils = Utils;
 
@@ -59,16 +60,24 @@
         ],
     });
 
-    window.waitForElm = (selector) => {
-        return new Promise((resolve) => {
+    window.waitForElm = (selector, timeoutMs = 10000) => {
+        return new Promise((resolve, reject) => {
             if (document.querySelector(selector)) {
                 return resolve(document.querySelector(selector));
             }
 
-            const observer = new MutationObserver((mutations) => {
-                if (document.querySelector(selector)) {
+            // Таймаут — фикс утечки памяти если элемент так и не появится
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`waitForElm: "${selector}" not found in ${timeoutMs}ms`));
+            }, timeoutMs);
+
+            const observer = new MutationObserver(() => {
+                const el = document.querySelector(selector);
+                if (el) {
+                    clearTimeout(timer);
                     observer.disconnect();
-                    resolve(document.querySelector(selector));
+                    resolve(el);
                 }
             });
 
@@ -163,10 +172,12 @@
                                 return resA;
                             }
                         } catch (e) {
-                            console.error("Auto-prefetch failed", e);
+                            // Префетч провалился или основной запрос упал
+                            console.error("API Error in wrapAnixApi", e);
+                            throw e; // Пробрасываем ошибку, чтобы Svelte {#await} ушел в {:catch}
                         }
 
-                        return val.apply(target, args);
+                        throw new Error("Empty response");
                     };
                 }
                 if (typeof val === 'object' && val !== null) {
@@ -261,11 +272,18 @@
         scrollEvent = callback;
     };
 
-    window.addEventListener("resize", function handleResize(event) {
+    function handleResize() {
         isFullscreen = window.innerHeight === screen.height;
-    });
+    }
+    window.addEventListener("resize", handleResize);
 
-    setInterval(mergeNotifications, 1800000); //Раз в 30 минут обновляем кол-во уведомлений
+    const notifInterval = setInterval(mergeNotifications, 1800000); // Раз в 30 минут обновляем кол-во уведомлений
+
+    // Чистим глобальные подписки (fix при HMR дублирования)
+    onDestroy(() => {
+        window.removeEventListener("resize", handleResize);
+        clearInterval(notifInterval);
+    });
 </script>
 
 <main>

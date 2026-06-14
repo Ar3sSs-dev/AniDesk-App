@@ -3,15 +3,16 @@
     import Dot from "./Dot.svelte";
 
     export let anime;
+    export let onClickOverride = null;
 </script>
 
-<anime-column-card class="flex-column" onclick={() => updateViewportComponent(8, { id: anime.id })}>
+<anime-column-card class="flex-column" onclick={() => onClickOverride ? onClickOverride() : updateViewportComponent(8, { id: anime.id })}>
     <div class="full-column-anime-poster">
-        <AnimePoster size={{ width: 169, height: 242 }} posterInfo={{poster: anime.image ? anime.image.replace(/\/\d+x\d+\//, "/") : "", title: anime.title}} shadow={true} borderRadius={20} posterStyle={anime.profile_list_status ?? 0}/>
+        <AnimePoster size={{ width: 169, height: 242 }} posterInfo={{poster: anime.image ? anime.image.replace(/\/\d+x\d+\//, "/") : "", title: anime.title_ru || anime.title}} shadow={true} borderRadius={20} posterStyle={anime.profile_list_status ?? 0}/>
     </div>
-    <div class="anime-item-title">{anime.title_ru}</div>
+    <div class="anime-item-title">{anime.title_ru || anime.title || ''}</div>
     <slot></slot>
-    <div class="anime-item-epCount flex-row">{utils.returnEpisodeString(anime)} эп. {#if utils.returnEpisodeString(anime) != "?" && anime.status?.id !== 3}<Dot size={{width: 4, height: 4}} />{anime.grade.toFixed(2)} ★{/if}</div>
+    <div class="anime-item-epCount flex-row">{utils.returnEpisodeString(anime)} эп. {#if utils.returnEpisodeString(anime) != "?" && anime.status?.id !== 3 && anime.grade != null}<Dot size={{width: 4, height: 4}} />{anime.grade.toFixed(2)} ★{/if}</div>
 </anime-column-card>
 
 <style>
@@ -24,11 +25,21 @@
     .full-column-anime-poster {
         margin-bottom: 10px;
         max-width: 169px;
-        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        /* GPU-слой заранее — фикс размытия при scale */
+        will-change: transform;
+        transform: translateZ(0);
+        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                    box-shadow 0.2s ease;
     }
 
     anime-column-card:hover .full-column-anime-poster {
-        transform: scale(1.03);
+        transform: scale(1.04) translateZ(0);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    anime-column-card:active .full-column-anime-poster {
+        transform: scale(0.98) translateZ(0);
+        transition-duration: 0.1s;
     }
 
     .anime-item-title {

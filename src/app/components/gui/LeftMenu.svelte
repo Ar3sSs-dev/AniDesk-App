@@ -25,6 +25,8 @@
     import CollectionList from "../../pages/CollectionList.svelte";
     import Collection from "../../pages/Collection.svelte";
     import Notifications from "../../pages/Notifications.svelte";
+    import DownloadIcon from "../../icons/download.svg";
+    import Offline from "../../pages/Offline.svelte";
     import NotifiactionAvaliable from "../../icons/notificationAvaliable.svg";
     import { notificationCount } from "../stores/notificationCount";
 
@@ -41,7 +43,8 @@
         Profile,
         Login,
         Player,
-        Collection
+        Collection,
+        Offline
     ];
 
     export let viewportComponent = null;
@@ -178,6 +181,12 @@
             modalComponent={Notifications}
             type="modal"
             tooltip="Уведомления"
+        />
+        <LeftMenuButton
+            icon={DownloadIcon}
+            selected={viewportComponent == views[13]}
+            viewportComponentIndex={13}
+            tooltip="Загрузки"
         />
         <LeftMenuButton
             icon={SettingsIcon}

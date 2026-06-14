@@ -7,6 +7,8 @@ import css from 'rollup-plugin-css-only';
 import { spawn } from 'child_process';
 import { string } from 'rollup-plugin-string'
 import svgo from 'rollup-plugin-svgo';
+import sveltePreprocess from 'svelte-preprocess';
+import typescript from '@rollup/plugin-typescript';
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -32,7 +34,7 @@ function serve() {
 }
 
 export default {
-    input: 'src/app/app.js',
+    input: 'src/app/app.ts',
     output: {
         sourcemap: true,
         stringArray: false,
@@ -42,6 +44,7 @@ export default {
     },
     plugins: [
         svelte({
+            preprocess: sveltePreprocess({ sourceMap: !production }),
             compilerOptions: {
                 dev: !production
             },
@@ -49,6 +52,10 @@ export default {
                 if (warning.code.startsWith("a11y-")) return;
                 handler(warning);
             }
+        }),
+        typescript({
+            sourceMap: !production,
+            inlineSources: !production
         }),
         svgo(),
         resolve({

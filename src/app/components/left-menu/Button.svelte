@@ -36,7 +36,8 @@
     }
 
     .selected {
-        background-color: var(--select-button-left-color);
+        /* Removed dark background for selected state */
+        background-color: transparent;
     }
 
     .selected:hover {

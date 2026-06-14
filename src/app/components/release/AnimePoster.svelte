@@ -82,6 +82,11 @@
         outline-style: var(--border-enabled);
         outline-width: 3px;
         object-fit: cover;
+        /* Рендеринг без артефактов при scale-трансформации */
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        image-rendering: -webkit-optimize-contrast;
+        display: block;
     }
 
     .anime-poster-skeleton {

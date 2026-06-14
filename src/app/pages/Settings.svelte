@@ -1,4 +1,4 @@
-<script>
+﻿<script>
     import Separator from "../components/elements/Separator.svelte";
     import SettingsAbout from "../settings-pages/SettingsAbout.svelte";
     import SettingsPlayer from "../settings-pages/SettingsPlayer.svelte";
@@ -49,9 +49,11 @@
             <span class="third-text">NodeJS v{window.versions.node}</span>
             <span class="third-text">Electron v{window.versions.electron}</span>
             <span class="third-text">Chrome v{window.versions.chrome}</span>
+            <span class="third-text">TypeScript Enabled</span>
+            <span class="third-text">SCSS Enabled</span>
         </div>
         <div class="links-info flex-row">
-            <button onclick={() => winApi.openLink(`https://github.com/theDesConnet/AniDesk`)}>
+            <button onclick={() => winApi.openLink(`https://github.com/Ar3sSs-dev/AniDesk-App`)}>
             <Icon src={githubLogo} varColor="--third-text-color" size={{width: 30, height: 30}}/>
             </button>
         </div>

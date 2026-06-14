@@ -10,12 +10,12 @@
 
     function hotkeyElementFocus(e) {
         value = [];
-        e.srcElement.innerText = "Ожидание нажатия клавиши...";
+        e.target.innerText = "Ожидание нажатия клавиши...";
         captureKeys = true;
     }
 
     function hotkeyElementBlur(e) {
-        e.srcElement.innerText =
+        e.target.innerText =
             value.length > 0
                 ? value.map(formatCode).join(" + ")
                 : "Горячая клавиша не установлена...";
@@ -134,3 +134,4 @@
         justify-content: space-between;
     }
 </style>
+

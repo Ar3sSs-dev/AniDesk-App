@@ -36,7 +36,7 @@
     onwheel={(e) => e.stopPropagation()}
     onscroll={(e) => {
         if (
-            e.srcElement.scrollTop >= e.srcElement.scrollHeight - 2000 &&
+            e.target.scrollTop >= e.target.scrollHeight - 2000 &&
             !updatedScroll
         ) {
             dispatch("scroll-ending", {
@@ -142,3 +142,4 @@
         font-weight: 600;
     }
 </style>
+

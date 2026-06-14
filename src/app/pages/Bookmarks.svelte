@@ -92,7 +92,7 @@
 
     const scrollEvent = async (e) => {
         if (
-            e.srcElement.scrollTop >= e.srcElement.scrollHeight - 2000 &&
+            e.target.scrollTop >= e.target.scrollHeight - 2000 &&
             !updateInfo &&
             total_count > allData.length + firstData_count
         ) {
@@ -306,3 +306,4 @@
         }
     }
 </style>
+

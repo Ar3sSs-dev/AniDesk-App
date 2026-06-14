@@ -207,7 +207,7 @@
             const rect = timelineContainer.getBoundingClientRect();
 
             const percent =
-                (Math.min(Math.max(0, e.x - rect.x), rect.width) / rect.width) *
+                (Math.min(Math.max(0, e.clientX - rect.x), rect.width) / rect.width) *
                 100;
 
             video.currentTime = (video.duration / 100) * percent;
@@ -228,7 +228,7 @@
         const rect = timelineContainer.getBoundingClientRect();
 
         const percent =
-            (Math.min(Math.max(0, e.x - rect.x), rect.width) / rect.width) *
+            (Math.min(Math.max(0, e.clientX - rect.x), rect.width) / rect.width) *
             100;
         mousePosPercent = percent;
 
@@ -248,34 +248,35 @@
             const rect = timelineContainer.getBoundingClientRect();
 
             const percent =
-                (Math.min(Math.max(0, e.x - rect.x), rect.width) / rect.width) *
+                (Math.min(Math.max(0, e.clientX - rect.x), rect.width) / rect.width) *
                 100;
 
             video.currentTime = (video.duration / 100) * percent;
             currentTime = utils.returnFormatedTime(video.currentTime);
             progressPercent = percent;
+            
+            // Set pointer capture so the timeline tracks the pointer even if it leaves the element briefly
+            e.currentTarget.setPointerCapture(e.pointerId);
         }
     }
-
-    function timelineMouseUp(e) {
-        isScrubbing = false;
-        video.play();
-    }
 </script>
+
+<svelte:window 
+    onpointerup={playerMouseUp} 
+    onpointermove={playerMouseMove} 
+/>
 
 <div
     class="player-gui"
     class:hide-gui={isHidden && !isPaused}
     style="--back-transparent: {transparentPercent / 100}"
-    onmousemove={playerMouseMove}
-    onmouseup={playerMouseUp}
     onclick={onClickGui}
 >
     <div class="gui-top-bar">
         <div class="gui-title flex-column">
-            <span class="gui-release-title">{args.release.title_ru}</span>
+            <span class="gui-release-title">{args.release?.title_ru ?? ''}</span>
             <span class="gui-release-episode">
-                {args.episodes[0].source.type.name} | {cEpisode.name}
+                {args.episodes?.[0]?.source?.type?.name ?? ''} | {cEpisode?.name ?? ''}
             </span>
         </div>
     </div>
@@ -391,15 +392,14 @@
         <div class="middle-content container flex-row">
             <div
                 class="gui-timeline"
-                onmouseenter={() => {
+                onpointerenter={() => {
                     showTimelineMouse = true;
                 }}
-                onmouseleave={() => {
+                onpointerleave={() => {
                     showTimelineMouse = false;
                 }}
-                onmousemove={timelineMouseMove}
-                onmousedown={timelineMouseDown}
-                onmouseup={timelineMouseUp}
+                onpointermove={timelineMouseMove}
+                onpointerdown={timelineMouseDown}
             >
                 <div
                     class="timeline"
@@ -439,9 +439,9 @@
                 </button>
                 <button
                     class="player-bottom-button"
-                    class:bottom-disabled={args.release.related_count == 0}
+                    class:bottom-disabled={!(args.release?.related_count > 0)}
                     onclick={() => {
-                        if (args.release.related_count > 0)
+                        if ((args.release?.related_count ?? 0) > 0)
                             showRelatedReleasesDropdown();
                     }}
                 >

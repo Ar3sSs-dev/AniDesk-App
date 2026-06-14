@@ -66,6 +66,10 @@
         margin-right: auto;
         max-width: 169px;
         cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+        text-align: left;
     }
 
     .anime-card-release:last-child {
@@ -73,11 +77,21 @@
     }
 
     .full-column-anime-poster {
-        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        /* GPU-слой заранее — фикс размытия при scale */
+        will-change: transform;
+        transform: translateZ(0);
+        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                    box-shadow 0.2s ease;
     }
 
     .anime-card-release:hover .full-column-anime-poster {
-        transform: scale(1.03);
+        transform: scale(1.04) translateZ(0);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .anime-card-release:active .full-column-anime-poster {
+        transform: scale(0.98) translateZ(0);
+        transition-duration: 0.1s;
     }
 
     .anime-release-title {

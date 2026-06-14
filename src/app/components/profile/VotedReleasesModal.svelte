@@ -22,7 +22,7 @@
     }
 
     async function scrollEvent(e) {
-        if ((e.srcElement.scrollTop >= e.srcElement.scrollHeight - 2000) && !updateInfo) {
+        if ((e.target.scrollTop >= e.target.scrollHeight - 2000) && !updateInfo) {
             updateInfo = true;
             page++;
             await getRelatedPage();
@@ -79,5 +79,6 @@
         align-items: center;
     }
 </style>
+
 
 

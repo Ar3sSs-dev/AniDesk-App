@@ -75,7 +75,7 @@
 
     setViewportScrollEvent(async (e) => {
         if (
-            e.srcElement.scrollTop >= e.srcElement.scrollHeight - 2000 &&
+            e.target.scrollTop >= e.target.scrollHeight - 2000 &&
             !updateInfo &&
             page <= maxPages
         ) {
@@ -185,7 +185,13 @@
         {#await firstData}
             <Preloader />
         {:then fData}
-            {#if fData.requests.in.content.length > 0}
+            {#if fData.requests.in.content.length === 0 && fData.requests.out.content.length === 0 && fData.friends.content.length === 0}
+                <div class="empty-friends flex-column">
+                    <img src="./assets/images/empty_friends.png" alt="Нет друзей" class="empty-friends-img" />
+                    <span class="empty-text">Ой-ой! Кажется, список друзей пока пуст...</span>
+                </div>
+            {:else}
+                {#if fData.requests.in.content.length > 0}
                 <div class="incoming-friends flex-column">
                     <span class="friends-title">Входящие заявки</span>
                     {#each fData.requests.in.content as rIn}
@@ -226,13 +232,14 @@
                     {/await}
                 {/each}
             </div>
+            {/if}
         {/await}
     </div>
 {:else}
     <AuthPlaceholder />
 {/if}
 
-<style>
+<style lang="scss">
     .friends-page {
         height: 100%;
         margin: 40px 60px;
@@ -377,4 +384,27 @@
     .friend-buttons {
         gap: 10px;
     }
+
+    .empty-friends {
+        align-items: center;
+        justify-content: center;
+        height: 60vh;
+        gap: 20px;
+
+        &-img {
+            width: 250px;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+    }
+
+    .empty-text {
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+        text-align: center;
+    }
 </style>
+

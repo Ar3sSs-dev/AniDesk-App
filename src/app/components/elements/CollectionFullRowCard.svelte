@@ -27,17 +27,44 @@
 <style>
     collection-full-row-card {
         margin: 20px;
+        border-radius: 16px;
+        transition: background-color 0.18s ease;
+        padding: 4px;
     }
 
     collection-full-row-card:hover {
         cursor: pointer;
+        background-color: var(--alt-background-color);
     }
 
-    .full-row-collection-poster img{
+    collection-full-row-card:active {
+        background-color: color-mix(in srgb, var(--alt-background-color) 80%, transparent);
+    }
+
+    .full-row-collection-poster {
+        will-change: transform;
+        transform: translateZ(0);
+        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                    box-shadow 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    collection-full-row-card:hover .full-row-collection-poster {
+        transform: scale(1.02) translateZ(0);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    collection-full-row-card:active .full-row-collection-poster {
+        transform: scale(0.99) translateZ(0);
+        transition-duration: 0.1s;
+    }
+
+    .full-row-collection-poster img {
         width: 400px;
         height: 224px;
         object-fit: cover;
         border-radius: 15px;
+        display: block;
     }
 
     .collection-info {

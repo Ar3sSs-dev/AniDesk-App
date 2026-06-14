@@ -5,6 +5,7 @@
     import RelatedModal from "../components/search/RelatedModal.svelte";
     import MetaInfo from "../components/gui/MetaInfo.svelte";
     import utils from "../utils";
+    import { onDestroy } from "svelte";
 
     export let args;
 
@@ -23,7 +24,7 @@
     }
 
     function inputEvent(e) {
-        args.query = e.srcElement.value;
+        args.query = e.target.value;
 
         if (timeout) {
             clearTimeout(timeout);
@@ -35,6 +36,10 @@
     if (args.query) {
         search();
     }
+
+    onDestroy(() => {
+        if (timeout) clearTimeout(timeout);
+    });
 </script>
 
 <div class="search-top-div flex-row">
@@ -237,3 +242,4 @@
         height: 100%;
     }
 </style>
+

@@ -27,6 +27,22 @@
         display: flex;
         flex-direction: row;
         margin-bottom: 10px;
+        border-radius: 12px;
+        padding: 6px;
+        transition: background-color 0.18s ease;
+        cursor: pointer;
+        background: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+    }
+
+    .related-anime-item:hover {
+        background-color: var(--alt-background-color);
+    }
+
+    .related-anime-item:active {
+        background-color: color-mix(in srgb, var(--alt-background-color) 80%, transparent);
     }
 
     .related-anime-item-title {

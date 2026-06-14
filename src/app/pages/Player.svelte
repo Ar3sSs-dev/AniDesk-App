@@ -78,6 +78,7 @@
         startTimestamp;
 
     let progressPercent, loadedPercent;
+    let seekTarget = 0;
 
     let isHidden, isPaused, isTimePosClick, isFullscreen;
     let pressedKeys = new Set();
@@ -107,6 +108,16 @@
 
     upscaleSettingsRaw.subscribe((value) => {
         upscaleSettings = value;
+    });
+
+    let savedTimes;
+    const savedTimesRaw = localStorageWritable(
+        "savedVideoTimes",
+        {},
+    );
+
+    savedTimesRaw.subscribe((value) => {
+        savedTimes = value;
     });
 
     let upscaleEnabled = upscaleSettings.enabled;
@@ -156,7 +167,56 @@
         init();
     });
 
+    onDestroy(() => {
+        // Сохранение времени ПЕРЕД сбросом видео
+        let ep = currentEpisode || args?.currentEpisode;
+        if (playerSettings.rememberTime && video && ep && !video.ended && video.duration - video.currentTime > 10) {
+            const timeKey = `${args?.release?.id}_${ep.position}`;
+            if (args?.release?.id) {
+                savedTimes[timeKey] = video.currentTime;
+                savedTimesRaw.set({ ...savedTimes });
+            }
+        }
+
+        if (video) {
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            video.onpause = null;
+            video.onplay = null;
+            video.ontimeupdate = null;
+            video.onloadedmetadata = null;
+            video.onwaiting = null;
+            video.onplaying = null;
+            video = null;
+        }
+        if (hls) {
+            hls.detachMedia();
+            hls.destroy();
+            hls = null;
+        }
+        document.removeEventListener("mousemove", hideOnIdle);
+        window.removeEventListener("resize", handleResize);
+        window.onwheel = null;
+        window.onkeydown = null;
+        window.onkeyup = null;
+        window.onblur = null;
+
+        if (volControl) volControl.oninput = null;
+        clearTimeout(timeout);
+    });
+
     async function playVideo(episode) {
+        // For offline episodes use src directly, skip HLS
+        if (args.isOffline || (episode.url && episode.url.startsWith('anidesk-offline://'))) {
+            const src = episode.url || args.src;
+            video.src = src;
+            args.src = src;
+            args.avaliableQuality = { "720": { src } };
+            await video.play();
+            return;
+        }
+
         let avaliableQuality, link;
         let source =
             typeof episode.source == "number"
@@ -178,20 +238,20 @@
 
             case "Liberty":
             case "Libria":
-                await utils.fallback(async (success) => {
+                await utils.fallback(async () => {
                     const aLinks = await AniLibriaParser.getDirectLinks(
                         episode.url,
                     );
                     avaliableQuality = aLinks;
 
-                    success = true;
+                    return true;
                 }, 3);
                 break;
 
             case "Sibnet":
-                await utils.fallback(async (success) => {
+                await utils.fallback(async () => {
                     const link = await Sibnet.Parse(episode.url);
-                    if (!link) return;
+                    if (!link) return false;
 
                     avaliableQuality = {
                         "720": {
@@ -199,7 +259,7 @@
                         },
                     };
 
-                    success = true;
+                    return true;
                 }, 3);
                 break;
         }
@@ -231,9 +291,18 @@
 
         args.src = link;
 
+        if (playerSettings.rememberTime) {
+            const timeKey = `${args.release.id}_${episode.position}`;
+            if (savedTimes[timeKey]) {
+                seekTarget = savedTimes[timeKey];
+            } else {
+                seekTarget = 0;
+            }
+        }
+
         await video.play();
 
-        if (!playingSettings.disableHistory) {
+        if (!playingSettings.disableHistory && !args.isOffline) {
             anixApi.release.markEpisodeAsWatched(
                 args.release.id,
                 args.episodes[0].source.id,
@@ -356,7 +425,9 @@
         mainDiv = await waitForElm(".anidesk-player");
         video = await waitForElm(".player-video");
 
-        if (Hls.isSupported() && !new URL(args.src).pathname.endsWith(".mp4")) {
+        if (args.isOffline || args.src.startsWith('anidesk-offline://')) {
+            video.src = args.src;
+        } else if (Hls.isSupported() && !new URL(args.src).pathname.endsWith(".mp4")) {
             hls = new Hls();
 
             hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
@@ -368,6 +439,15 @@
             hls.attachMedia(video);
         } else {
             video.src = args.src;
+        }
+
+        if (playerSettings.rememberTime) {
+            const timeKey = `${args.release.id}_${args.currentEpisode.position}`;
+            if (savedTimes[timeKey]) {
+                seekTarget = savedTimes[timeKey];
+            } else {
+                seekTarget = 0;
+            }
         }
 
         video.volume = playerSettings.saveUserVolume.enabled
@@ -385,13 +465,17 @@
 
             if (playerSettings.saveUserVolume.enabled) {
                 playerSettings.saveUserVolume.lastValue = volControl.value;
-                playerSettingsRaw.set(playerSettings);
+                playerSettingsRaw.set({ ...playerSettings });
             }
         };
 
         video.onloadedmetadata = () => {
             loading = true;
             durationTime = utils.returnFormatedTime(video.duration);
+            if (seekTarget > 0) {
+                video.currentTime = seekTarget;
+                seekTarget = 0;
+            }
         };
 
         video.onwaiting = () => {
@@ -500,7 +584,11 @@
                     if (isFullscreen) {
                         elecWindow.exitFullscreen();
                     }
-                    updateViewportComponent(8, { id: args.release.id });
+                    if (args.isOffline) {
+                        updateViewportComponent(13); // back to Offline page
+                    } else {
+                        updateViewportComponent(8, { id: args.release.id });
+                    }
                     break;
             }
         };
@@ -522,24 +610,33 @@
             isPaused = true;
             loading = false;
 
-            discordRPC.setActivity({
-                type: 3,
-                state: `${currentEpisode.name}`,
-                details: args.release.title_ru.slice(0, 127),
-                largeImageKey: "anidesk-transparent",
-                largeImageText: "AniDesk - Anixart Client",
-                instance: true,
-                buttons: [
-                    {
-                        label: "Ссылка на релиз",
-                        url: `https://anixart.app/release/${args.release.id}`,
-                    },
-                    {
-                        label: "Ссылка на клиент",
-                        url: "https://anidesk.ds1nc.ru/",
-                    },
-                ],
-            });
+            let ep = currentEpisode || args.currentEpisode;
+            if (playerSettings.rememberTime && ep && video.duration - video.currentTime > 10) {
+                const timeKey = `${args.release.id}_${ep.position}`;
+                savedTimes[timeKey] = video.currentTime;
+                savedTimesRaw.set({ ...savedTimes });
+            }
+
+            if (!args.isOffline) {
+                discordRPC.setActivity({
+                    type: 3,
+                    state: `${ep?.name || ''}`,
+                    details: args.release.title_ru.slice(0, 127),
+                    largeImageKey: "anidesk-transparent",
+                    largeImageText: "AniDesk - Anixart Client",
+                    instance: true,
+                    buttons: [
+                        {
+                            label: "Ссылка на релиз",
+                            url: `https://anixart.app/release/${args.release.id}`,
+                        },
+                        {
+                            label: "Ссылка на клиент",
+                            url: "https://anidesk.ds1nc.ru/",
+                        },
+                    ],
+                });
+            }
         };
 
         video.onplay = (e) => {
@@ -547,42 +644,60 @@
             loading = false;
 
             startTimestamp = Date.now();
+            const ep = currentEpisode || args.currentEpisode;
 
-            discordRPC.setActivity({
-                type: 3,
-                state: `${currentEpisode.name}`,
-                details: args.release.title_ru.slice(0, 127),
-                largeImageKey: "anidesk-transparent",
-                largeImageText: "AniDesk - Anixart Client",
-                startTimestamp: startTimestamp - video.currentTime * 1000,
-                endTimestamp:
-                    startTimestamp +
-                    (video.duration - video.currentTime) * 1000,
-                instance: true,
-                buttons: [
-                    {
-                        label: "Ссылка на релиз",
-                        url: `https://anixart.tv/release/${args.release.id}`,
-                    },
-                    {
-                        label: "Ссылка на клиент",
-                        url: "https://anidesk.ds1nc.ru/",
-                    },
-                ],
-            });
+            if (!args.isOffline) {
+                discordRPC.setActivity({
+                    type: 3,
+                    state: `${ep?.name || ''}`,
+                    details: args.release.title_ru.slice(0, 127),
+                    largeImageKey: "anidesk-transparent",
+                    largeImageText: "AniDesk - Anixart Client",
+                    startTimestamp: startTimestamp - video.currentTime * 1000,
+                    endTimestamp:
+                        startTimestamp +
+                        (video.duration - video.currentTime) * 1000,
+                    instance: true,
+                    buttons: [
+                        {
+                            label: "Ссылка на релиз",
+                            url: `https://anixart.tv/release/${args.release.id}`,
+                        },
+                        {
+                            label: "Ссылка на клиент",
+                            url: "https://anidesk.ds1nc.ru/",
+                        },
+                    ],
+                });
+            }
         };
 
         video.onended = async () => {
+            let ep = currentEpisode || args.currentEpisode;
+            if (playerSettings.rememberTime && ep) {
+                const timeKey = `${args.release.id}_${ep.position}`;
+                if (savedTimes[timeKey]) {
+                    delete savedTimes[timeKey];
+                    savedTimesRaw.set({ ...savedTimes });
+                }
+            }
+
             if (playerSettings.autoplayEpisode) {
-                let e = args.episodes.find(
-                    (x) => x.position == currentEpisode.position + 1,
+                const nextEp = args.episodes.find(
+                    (x) => x.position == (ep?.position ?? -1) + 1,
                 );
 
-                if (e) {
-                    currentEpisode = e;
+                if (nextEp) {
+                    currentEpisode = nextEp;
                     await playVideo(currentEpisode);
                 }
             }
+        };
+
+        // Обработчик ошибки загрузки видео
+        video.onerror = () => {
+            loading = false;
+            console.error('Video load error:', video.error?.message);
         };
 
         video.ontimeupdate = () => {
@@ -590,63 +705,49 @@
             progressPercent = (video.currentTime / video.duration) * 100;
         };
 
-        let source =
-            typeof args.currentEpisode.source == "number"
-                ? args.episodes.find(
-                      (x) => args.currentEpisode.source == x.source["@id"],
-                  ).source
-                : args.currentEpisode.source;
+        // Guard: для оффлайн-режима source — заглушка, пропускаем
+        let source;
+        if (!args.isOffline) {
+            source =
+                typeof args.currentEpisode.source == "number"
+                    ? args.episodes.find(
+                          (x) => args.currentEpisode.source == x.source["@id"],
+                      )?.source
+                    : args.currentEpisode.source;
+        }
 
-        analytics.trackEvent("play_anime", {
-            source: source.name,
-            name: args.currentEpisode.name,
-            releaseTitle: args.release.title_ru,
-            dubber: source.type.name,
-        });
+        if (!args.isOffline) {
+            analytics.trackEvent("play_anime", {
+                source: source.name,
+                name: args.currentEpisode.name,
+                releaseTitle: args.release.title_ru,
+                dubber: source.type.name,
+            });
+        }
 
-        discordRPC.setActivity({
-            type: 3,
-            state: `${currentEpisode.name}`,
-            details: args.release.title_ru.slice(0, 127),
-            largeImageKey: "anidesk-transparent",
-            largeImageText: "AniDesk - Anixart Client",
-            startTimestamp: startTimestamp - video.currentTime * 1000,
-            endTimestamp:
-                startTimestamp + (video.duration - video.currentTime) * 1000,
-            instance: true,
-            buttons: [
-                {
-                    label: "Ссылка на релиз",
-                    url: `https://anixart.tv/release/${args.release.id}`,
-                },
-                { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
-            ],
-        });
+        if (!args.isOffline) {
+            const ep = currentEpisode || args.currentEpisode;
+            discordRPC.setActivity({
+                type: 3,
+                state: `${ep?.name || ''}`,
+                details: args.release.title_ru.slice(0, 127),
+                largeImageKey: "anidesk-transparent",
+                largeImageText: "AniDesk - Anixart Client",
+                startTimestamp: startTimestamp - video.currentTime * 1000,
+                endTimestamp:
+                    startTimestamp + (video.duration - video.currentTime) * 1000,
+                instance: true,
+                buttons: [
+                    {
+                        label: "Ссылка на релиз",
+                        url: `https://anixart.tv/release/${args?.release?.id || ''}`,
+                    },
+                    { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
+                ],
+            });
+        }
     }
 
-    onDestroy(() => {
-        //Destroy all event listeners
-        if (hls) {
-            hls.detachMedia();
-            hls.destroy();
-        }
-        document.removeEventListener("mousemove", hideOnIdle);
-        window.removeEventListener("resize", handleResize);
-        window.onwheel = null;
-        window.onkeydown = null;
-        window.onkeyup = null;
-        window.onblur = null;
-        video.onpause = null;
-        video.onplay = null;
-        video.ontimeupdate = null;
-        video.onloadedmetadata = null;
-        video.onwaiting = null;
-        video.onplaying = null;
-        video = null;
-
-        volControl.oninput = null;
-        clearTimeout(timeout);
-    });
 </script>
 
 <div class="anidesk-player full">
@@ -657,13 +758,8 @@
         {isFullscreen}
         {isPaused}
         {video}
-        {isTimePosClick}
-        {timePos}
         {progressPercent}
         {loadedPercent}
-        {volControl}
-        {canvas}
-        {mainDiv}
         {currentTime}
         {durationTime}
         bind:cEpisode={currentEpisode}

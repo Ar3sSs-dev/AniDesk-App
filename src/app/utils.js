@@ -14,6 +14,7 @@ module.exports = {
 
     playerDefaultSettings: {
         autoplayEpisode: true,
+        rememberTime: false,
         defaultAspectRatio: "16-9",
         saveUserVolume: {
             enabled: false,
@@ -43,6 +44,10 @@ module.exports = {
         defaultQuality: 1080,
         defaultSource: null,
         disableHistory: false
+    },
+
+    downloadDefaultSettings: {
+        defaultQuality: 720
     },
 
     upscaleDefaultSettings: {
@@ -237,12 +242,15 @@ module.exports = {
     },
 
     async fallback(callback, count) {
-        let success = false;
-
-        for (let i = 0; i < count && !success; i++) {
-            callback(success);
+        for (let i = 0; i < count; i++) {
+            // callback \u0434\u043e\u043b\u0436\u0435\u043d \u0432\u0435\u0440\u043d\u0443\u0442\u044c true \u043f\u0440\u0438 \u0443\u0441\u043f\u0435\u0445\u0435.
+            // \u041f\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u0444\u043b\u0430\u0433\u0430 success \u043f\u043e \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044e (\u0441\u0442\u0430\u0440\u044b\u0439 \u043a\u043e\u0434) \u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u043b\u0430 \u2014
+            // \u043c\u0443\u0442\u0430\u0446\u0438\u044f \u0432\u043d\u0443\u0442\u0440\u0438 \u043a\u043e\u043b\u043b\u0431\u044d\u043a\u0430 \u043d\u0435 \u0432\u043b\u0438\u044f\u043b\u0430 \u043d\u0430 \u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u0443\u044e \u0432\u043d\u0435\u0448\u043d\u0435\u0433\u043e \u0446\u0438\u043a\u043b\u0430.
+            const success = await callback();
             if (success) return;
-            await new Promise(r => setTimeout(r, 500));
+            if (i < count - 1) {
+                await new Promise(r => setTimeout(r, 500));
+            }
         }
     }
 };

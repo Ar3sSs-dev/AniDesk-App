@@ -4,22 +4,33 @@
     import { AniLibriaParser, KodikParser } from "anixartjs";
     import { localStorageWritable } from "@babichjacob/svelte-localstorage";
     import DropdownButton from "../buttons/DropdownButton.svelte";
+    import Icon from "../elements/Icon.svelte";
+    import DownloadIcon from "../../icons/download.svg";
+    import { downloadProgressStore } from "../stores/downloadProgressStore";
 
     const dispatch = createEventDispatcher();
 
     export let args;
     export let showed;
 
+    $: progresses = $downloadProgressStore;
+
     let currentDubberId,
         currentSourceId,
         currentSourceName,
         playingSettings,
+        downloadSettings,
         episodes;
 
     let dubberList = [];
     let backgroundModal = document.querySelector(".modal-background");
 
+    let sourceList = {
+        sources: [],
+    };
+
     anixApi.release.getDubbers(args.id).then((v) => {
+        if (!v.types?.length) return; // guard: no dubbers
         selectDubber(v.types[0].id);
         dubberList = v.types.map((x) => ({
             label: x.name,
@@ -32,17 +43,22 @@
         }));
     });
 
-    let sourceList = {
-        sources: [],
-    };
-
     const playingSettingsRaw = localStorageWritable(
         "playingSettings",
         utils.playingDefaultSettings,
     );
 
+    const downloadSettingsRaw = localStorageWritable(
+        "downloadSettings",
+        utils.downloadDefaultSettings,
+    );
+
     playingSettingsRaw.subscribe((value) => {
         playingSettings = value;
+    });
+
+    downloadSettingsRaw.subscribe((value) => {
+        downloadSettings = value;
     });
 
     let favoriteSourceName = utils.sourceValues.find(
@@ -58,6 +74,13 @@
             args.id,
             currentDubberId,
         );
+
+        if (!sourceList.sources?.length) {
+            currentSourceId = null;
+            currentSourceName = '';
+            episodes = null;
+            return sourceList;
+        }
 
         let matchedSource = sourceList.sources.find(
             (x) => x.name == favoriteSourceName,
@@ -92,10 +115,44 @@
             currentSourceId,
         );
     }
+
+    /**
+     * Picks the best available URL from a quality map for downloading.
+     * Tries the desired quality first, then falls back to nearest lower available.
+     * availableQuality: { "1080": { src }, "720": { src }, ... }
+     */
+    function pickDownloadQuality(availableQuality) {
+        const desired = downloadSettings?.defaultQuality ?? 720;
+        const orderedKeys = [1080, 720, 480, 360];
+
+        // Try exact match first
+        if (availableQuality[String(desired)]?.src) {
+            return availableQuality[String(desired)].src;
+        }
+
+        // Find nearest lower quality
+        const desiredIdx = orderedKeys.indexOf(desired);
+        for (let i = desiredIdx + 1; i < orderedKeys.length; i++) {
+            const key = String(orderedKeys[i]);
+            if (availableQuality[key]?.src) return availableQuality[key].src;
+        }
+
+        // Fallback: any available
+        for (const key of orderedKeys) {
+            if (availableQuality[String(key)]?.src) return availableQuality[String(key)].src;
+        }
+
+        // Last resort: first key
+        const firstKey = Object.keys(availableQuality)[0];
+        return availableQuality[firstKey]?.src ?? null;
+    }
 </script>
 
-{#snippet baseCard(x, clickCallback)}
-    <button class="base-card" onclick={clickCallback}>
+{#snippet baseCard(x, clickCallback, downloadCallback)}
+    {@const progress = progresses[`${args.id}_${x.position}`]}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="base-card" onclick={clickCallback}>
         <div class="base-card-name">
             {x.name}
         </div>
@@ -103,8 +160,60 @@
             {#if x.is_watched}
                 <img src="./assets/icons/checkmark.svg" alt="check" />
             {/if}
+            <button class="download-btn" onclick={async (e) => { 
+                e.stopPropagation();
+                const btn = e.currentTarget;
+                if (btn.disabled) return;
+                btn.disabled = true; // Заблокируем двойной клик сразу до любых проверок
+                
+                if (progress === 100) {
+                    if (confirm("Вы действительно хотите удалить эту скачанную серию?")) {
+                        await offlineApi.deleteEpisode(args.id, x.position);
+                        downloadProgressStore.update(s => { delete s[`${args.id}_${x.position}`]; return { ...s }; });
+                        btn.disabled = false;
+                    } else {
+                        // Пользователь отменил — разблокируем кнопку, иначе она останется серой навсегда
+                        btn.disabled = false;
+                    }
+                    return;
+                } else if (progress === -2 || (progress >= 0 && progress < 100)) {
+                    await offlineApi.cancelDownload(args.id, x.position);
+                    downloadProgressStore.update(s => { delete s[`${args.id}_${x.position}`]; return { ...s }; });
+                    btn.disabled = false;
+                    return;
+                }
+
+                const originalHtml = btn.innerHTML;
+                try {
+                    const started = await downloadCallback(); 
+                    if (started && progress === undefined) {
+                        downloadProgressStore.update(s => ({...s, [`${args.id}_${x.position}`]: -2}));
+                    } else if (!started && progress === undefined) {
+                        btn.innerHTML = '<span style="color: #FFC107; font-size: 14px; font-weight: bold; margin-right: 5px;">Уже в процессе</span>';
+                        setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 2000);
+                        return;
+                    }
+                } catch(err) {
+                    btn.innerHTML = '<span style="color: #F44336; font-size: 14px; font-weight: bold; margin-right: 5px;">Ошибка</span>';
+                    setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 2000);
+                    return;
+                }
+                btn.disabled = false;
+            }} title="Скачать / Отменить / Удалить">
+                {#if progress >= 0 && progress < 100}
+                    <span style="color: #4CAF50; font-size: 14px; font-weight: bold; margin-right: 5px;">Загрузка: {Math.round(progress)}%</span>
+                {:else if progress === -2}
+                    <span style="color: #FFC107; font-size: 14px; font-weight: bold; margin-right: 5px;">В очереди</span>
+                {:else if progress === 100}
+                    <img src="./assets/icons/checkmark.svg" alt="check" />
+                {:else if progress === -1}
+                    <span style="color: #F44336; font-size: 14px; font-weight: bold; margin-right: 5px;">Ошибка</span>
+                {:else}
+                    <Icon src={DownloadIcon} size={{width: 20, height: 20}} varColor="--main-text-color" />
+                {/if}
+            </button>
         </div>
-    </button>
+    </div>
 {/snippet}
 
 <div class="modal-title">
@@ -150,44 +259,43 @@
                 {#each i.episodes as d}
                     {@render baseCard(d, async () => {
                         let avaliableQuality, link;
-
-                        switch (currentSourceName) {
-                            case "Kodik":
-                                let aQ = {};
-                                const kLinks = await KodikParser.getDirectLinks(
-                                    d.url,
-                                );
-                                for (const [key, value] of Object.entries(
-                                    kLinks,
-                                )) {
-                                    aQ[key] = {
-                                        src: value[0].src,
-                                    };
+                        
+                        // Check offline first
+                        let isOffline = false;
+                        let offlineUrl = "";
+                        try {
+                            const lib = await offlineApi.getLibrary();
+                            const anime = lib.find(a => a.id === args.id);
+                            if (anime) {
+                                const ep = anime.episodes.find(e => e.id === d.position);
+                                if (ep) {
+                                    isOffline = true;
+                                    const hexPath = Array.from(new TextEncoder().encode(ep.filePath)).map(b => b.toString(16).padStart(2, '0')).join('');
+                                    offlineUrl = `anidesk-offline://${hexPath}`;
                                 }
-                                avaliableQuality = aQ;
-                                break;
+                            }
+                        } catch(e) {}
 
-                            case "Liberty":
-                            case "Libria":
-                                const aLinks =
-                                    await AniLibriaParser.getDirectLinks(d.url);
-                                avaliableQuality = aLinks;
-                                break;
-
-                            case "Sibnet":
-                                await utils.fallback(async (success) => {
-                                    const link = await Sibnet.Parse(d.url);
-                                    if (!link) return;
-
-                                    avaliableQuality = {
-                                        "720": {
-                                            src: link,
-                                        },
-                                    };
-
-                                    success = true;
-                                }, 3);
-                                break;
+                        if (isOffline) {
+                            avaliableQuality = { "720": { src: offlineUrl } };
+                        } else {
+                            switch (currentSourceName) {
+                                case "Kodik":
+                                    let aQ = {};
+                                    const kLinks = await KodikParser.getDirectLinks(d.url);
+                                    for (const [key, value] of Object.entries(kLinks)) { aQ[key] = { src: value[0].src }; }
+                                    avaliableQuality = aQ; break;
+                                case "Liberty":
+                                case "Libria":
+                                    avaliableQuality = await AniLibriaParser.getDirectLinks(d.url); break;
+                                case "Sibnet":
+                                    await utils.fallback(async () => {
+                                        const link = await Sibnet.Parse(d.url);
+                                        if (!link) return false;
+                                        avaliableQuality = { "720": { src: link } };
+                                        return true;
+                                    }, 3); break;
+                            }
                         }
 
                         if (!playingSettings.disableHistory) {
@@ -203,10 +311,7 @@
                             );
                         }
 
-                        const url =
-                            avaliableQuality[
-                                String(playingSettings.defaultQuality)
-                            ]?.src ?? avaliableQuality["720"]?.src;
+                        const url = avaliableQuality[String(playingSettings.defaultQuality)]?.src ?? avaliableQuality["720"]?.src;
 
                         updateViewportComponent(11, {
                             src: `${URL.canParse(url) ? url : `https:${url}`}`,
@@ -216,6 +321,33 @@
                             episodes: i.episodes,
                             currentEpisode: d,
                         });
+                    }, async () => {
+                        let avaliableQuality, link;
+                        switch (currentSourceName) {
+                            case "Kodik":
+                                let aQ = {};
+                                const kLinks = await KodikParser.getDirectLinks(d.url);
+                                for (const [key, value] of Object.entries(kLinks)) { aQ[key] = { src: value[0].src }; }
+                                avaliableQuality = aQ; break;
+                            case "Liberty":
+                            case "Libria":
+                                avaliableQuality = await AniLibriaParser.getDirectLinks(d.url); break;
+                            case "Sibnet":
+                                await utils.fallback(async () => {
+                                    const link = await Sibnet.Parse(d.url);
+                                    if (!link) return false;
+                                    avaliableQuality = { "720": { src: link } };
+                                    return true;
+                                }, 3); break;
+                        }
+                        const rawUrl = pickDownloadQuality(avaliableQuality);
+                        if (!rawUrl) throw new Error("Не удалось получить ссылку на видео");
+                        const realUrl = URL.canParse(rawUrl) ? rawUrl : `https:${rawUrl}`;
+                        return offlineApi.downloadEpisode(
+                            { id: args.id, title: args.title_ru || args.name_ru || args.name || args.title, image: args.image },
+                            { id: d.position, title: d.name },
+                            realUrl
+                        );
                     })}
                 {/each}
             {/await}
@@ -275,5 +407,24 @@
         margin-left: auto;
         margin-right: 0;
         justify-items: center;
+        align-items: center;
+        gap: 10px;
+        padding-right: 10px;
+    }
+
+    .download-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+
+    .download-btn:hover {
+        background-color: var(--background-color);
     }
 </style>

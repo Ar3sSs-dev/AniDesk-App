@@ -10,6 +10,17 @@ contextBridge.exposeInMainWorld('analytics', {
   trackEvent: (eventName, props) => ipcRenderer.invoke("analytics:trackEvent", eventName, props)
 });
 
+contextBridge.exposeInMainWorld('offlineApi', {
+  getLibrary: () => ipcRenderer.invoke('offline:getLibrary'),
+  openFolder: () => ipcRenderer.invoke('offline:openFolder'),
+  deleteEpisode: (animeId, episodeId) => ipcRenderer.invoke('offline:deleteEpisode', animeId, episodeId),
+  downloadEpisode: (animeMeta, episodeMeta, url) => ipcRenderer.invoke('offline:downloadEpisode', animeMeta, episodeMeta, url),
+  cancelDownload: (animeId, episodeId) => ipcRenderer.invoke('offline:cancelDownload', animeId, episodeId),
+  getActiveDownloads: () => ipcRenderer.invoke('offline:getActiveDownloads'),
+  onProgress: (callback) => ipcRenderer.on('offline:progress', (_event, data) => callback(data)),
+  onError: (callback) => ipcRenderer.on('offline:error', (_event, data) => callback(data)),
+});
+
 contextBridge.exposeInMainWorld('winApi', {
   openLink: (link) => ipcRenderer.invoke('winApi:openLink', link),
 });

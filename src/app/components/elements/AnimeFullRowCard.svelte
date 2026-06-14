@@ -24,10 +24,19 @@
         margin-bottom: 20px;
         margin-top: 20px;
         margin-right: 20px;
+        border-radius: 16px;
+        transition: background-color 0.18s ease;
+        padding: 4px;
+        margin: 16px;
     }
 
     anime-full-row-card:hover {
         cursor: pointer;
+        background-color: var(--alt-background-color);
+    }
+
+    anime-full-row-card:active {
+        background-color: color-mix(in srgb, var(--alt-background-color) 80%, transparent);
     }
 
     .anime-item-title {
@@ -52,6 +61,21 @@
 
     .full-row-anime-poster {
         margin-right: 25px;
+        will-change: transform;
+        transform: translateZ(0);
+        transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                    box-shadow 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    anime-full-row-card:hover .full-row-anime-poster {
+        transform: scale(1.03) translateZ(0);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    anime-full-row-card:active .full-row-anime-poster {
+        transform: scale(0.98) translateZ(0);
+        transition-duration: 0.1s;
     }
 
     .anime-item-description {

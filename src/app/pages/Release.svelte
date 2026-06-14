@@ -104,15 +104,11 @@
             <div
                 tabindex="-1"
                 class="left-info-release hide-scroll flex-column"
-                onmouseenter={() => {
-                    document
-                        .querySelector(".left-info-release")
-                        .classList.remove("hide-scroll");
+                onmouseenter={(e) => {
+                    e.currentTarget.classList.remove("hide-scroll");
                 }}
-                onmouseleave={() => {
-                    document
-                        .querySelector(".left-info-release")
-                        .classList.add("hide-scroll");
+                onmouseleave={(e) => {
+                    e.currentTarget.classList.add("hide-scroll");
                 }}
             >
                 <AnimePoster
@@ -218,7 +214,7 @@
                 {/if}
                 <div class="release-description">{r.release.description}</div>
                 <div class="flex-row">
-                    {#if r.release.screenshot_images.length > 0}
+                    {#if r.release.screenshot_images?.length > 0}
                         <div class="release-images">
                             Кадры
                             <Slider
@@ -234,7 +230,7 @@
                                 }}
                             />
                         </div>
-                    {:else if r.release.related_releases.length > 0}
+                    {:else if r.release.related_releases?.length > 0}
                         <RelatedReleases
                             release={r.release}
                             on:viewAllCalled={() =>
@@ -243,7 +239,7 @@
                     {/if}
                     <MinInfo release={r.release} />
                 </div>
-                {#if r.release.screenshot_images.length > 0 && r.release.related_releases.length > 0}
+                {#if r.release.screenshot_images?.length > 0 && r.release.related_releases?.length > 0}
                     <RelatedReleases
                         release={r.release}
                         on:viewAllCalled={() =>

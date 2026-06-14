@@ -27,7 +27,7 @@
 
 <div
     class="modal-background"
-    style="--display: {showed ? 'flex' : 'none'}"
+    style="--display: {showed ? 'flex' : 'none'}; pointer-events: {showed ? 'all' : 'none'};"
     onclick={() => {if (canCloseOnBackground) closeModal();}}
 >
     <div tabindex="-1" class="modal" style="--width: {modalSize.width}; --height: {modalSize.height};" onclick={(event) => event.stopPropagation()}>

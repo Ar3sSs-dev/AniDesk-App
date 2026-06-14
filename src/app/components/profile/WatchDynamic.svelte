@@ -3,7 +3,10 @@
 
     let lastDate = src.slice(-10);
 
-    let maxCount = lastDate.map(obj => obj.count).reduce((a, b) => Math.max(a, b), lastDate[0].count);
+    // Guard: \u0435\u0441\u043b\u0438 \u043c\u0430\u0441\u0441\u0438\u0432 \u043f\u0443\u0441\u0442 \u2014 lastDate[0].count \u0431\u0440\u043e\u0441\u0438\u043b \u0431\u044b TypeError
+    let maxCount = lastDate.length > 0
+        ? lastDate.map(obj => obj.count).reduce((a, b) => Math.max(a, b), lastDate[0].count)
+        : 1; // 1 \u0447\u0442\u043e\u0431\u044b \u0438\u0437\u0431\u0435\u0436\u0430\u0442\u044c \u0434\u0435\u043b\u0435\u043d\u0438\u044f \u043d\u0430 0
 </script>
 
 {#snippet graphColumn(obj)}

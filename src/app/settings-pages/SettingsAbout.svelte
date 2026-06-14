@@ -1,4 +1,4 @@
-<script>
+﻿<script>
     import githubLogo from "../icons/github.svg";
     import Icon from "../components/elements/Icon.svelte";
 </script>
@@ -13,18 +13,14 @@
         <div class="app-info flex-column">
             <span class="app-title">AniDesk</span>
             <p class="app-description">
-                Неофициальный десктоп-клиент для приложения <strong
-                    >Anixart</strong
-                >
-                с открытым исходным кодом. Разработан с использованием
-                <strong>Node.js</strong>, <strong>Electron</strong>,
-                <strong>Svelte</strong>
-                и <strong>AnixartJS</strong>.
+                Быстрый и удобный неофициальный десктоп-клиент для <strong>Anixart</strong>. 
+                Проект с открытым исходным кодом, построенный на современном стеке веб-технологий: 
+                <strong>Node.js</strong>, <strong>Electron</strong>, <strong>Svelte</strong> и <strong>AnixartJS</strong>.
             </p>
         </div>
     </div>
     <div class="app-developers flex-column">
-        <span class="app-title">Разработчики</span>
+        <span class="app-title">Основные разработчики</span>
         <div class="developers flex-column">
             <div class="developer flex-row">
                 <img
@@ -68,6 +64,38 @@
                             onclick={() => {
                                 winApi.openLink(
                                     `https://github.com/hack1exe`,
+                                );
+                            }}
+                        >
+                            <Icon
+                                src={githubLogo}
+                                varColor="--main-text-color"
+                                size={{ width: 35, height: 35 }}
+                            />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-developers flex-column" style="margin-top: 10px;">
+        <span class="app-title">Контрибьюторы</span>
+        <div class="developers flex-column">
+            <div class="developer flex-row">
+                <img
+                    src="https://github.com/Ar3sSs-dev.png"
+                    width="100px"
+                    alt="icon"
+                />
+                <div class="dev-info">
+                    <span class="developer-name">Ar3sSs-dev</span>
+                    <span class="developer-role">Независимый разработчик</span>
+                    <div class="social-links">
+                        <button
+                            onclick={() => {
+                                winApi.openLink(
+                                    `https://github.com/Ar3sSs-dev`,
                                 );
                             }}
                         >
@@ -142,5 +170,18 @@
         font-weight: bold;
         color: var(--main-text-color);
         width: fit-content;
+    }
+
+    .app-description {
+        margin-top: 12px;
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--secondary-text-color);
+        max-width: 650px;
+    }
+
+    .app-description strong {
+        color: var(--main-text-color);
+        font-weight: 600;
     }
 </style>
