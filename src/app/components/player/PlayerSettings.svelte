@@ -48,10 +48,10 @@
                     <span class="btn-title">Качество:</span>
                     <span>{currentSettings.currentQuality}p →</span>
                 </button>
-                <div class="player-settings-element" class:disabled={!upscaleSettings.enabled || !avaliableGPU}>
+                <div class="player-settings-element" class:disabled={!avaliableGPU}>
                     <span class="btn-title">Улучшение качества:</span>
                     <SliderButton
-                        disabled={!upscaleSettings.enabled || !avaliableGPU}
+                        disabled={!avaliableGPU}
                         value={!avaliableGPU ? false : currentSettings.upscaleEnabled}
                         onClickCallback={(value) => changeUpscale(value)}
                     />

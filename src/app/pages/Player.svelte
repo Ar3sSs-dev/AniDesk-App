@@ -103,6 +103,8 @@
         playingSettings = value;
     });
 
+    let upscaleEnabled = false;
+
     const upscaleSettingsRaw = localStorageWritable(
         "upscaleSettings",
         utils.upscaleDefaultSettings,
@@ -110,6 +112,7 @@
 
     upscaleSettingsRaw.subscribe((value) => {
         upscaleSettings = value;
+        upscaleEnabled = value.enabled;
     });
 
     let savedTimes;
@@ -121,8 +124,6 @@
     savedTimesRaw.subscribe((value) => {
         savedTimes = value;
     });
-
-    let upscaleEnabled = upscaleSettings.enabled;
 
     async function changeUpscale(enabled) {
         upscaleEnabled = enabled;
@@ -388,39 +389,20 @@
         // Форсируем отдельный GPU-слой для канваса, чтобы Chromium
         // не троттлил rAF из-за перекрытия GUI-слоем (rAF throttle fix)
         canvas.style.willChange = 'transform';
-        canvas.style.transform = 'translateZ(0)';
+        // transform: translateZ(0) убрано, чтобы не затереть translateX(-50%)
         canvas.style.backfaceVisibility = 'hidden';
-
-        // ——— FIX #3: запрашиваем WebGPU-контекст с high-performance адаптером
-        // на AMD Vega это гарантирует использование дискретной GPU, а не интегрированной
-        if (navigator.gpu) {
-            try {
-                const gpuCtx = canvas.getContext('webgpu');
-                if (gpuCtx) {
-                    // Пред-конфигурируем канвас с высокопроизводительным адаптером
-                    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-                    if (adapter) {
-                        const device = await adapter.requestDevice();
-                        gpuCtx.configure({
-                            device,
-                            format: navigator.gpu.getPreferredCanvasFormat(),
-                            alphaMode: 'opaque', // отключаем альфа-композитинг — экономия GPU
-                        });
-                    }
-                }
-            } catch(e) {
-                // если контекст уже захвачен библиотекой — не блокируемся
-            }
-        }
 
         // ——— FIX #4: размер канваса = размер видеопотока (не DPR-экран)
         // Компьютерные шейдеры работают в пространстве пикселей видео, не экрана!
         // Отрисованный результат потом CSS масштабирует до размера окна автоматически
         const videoWidth = video.videoWidth;
         const videoHeight = video.videoHeight;
-        if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
-            canvas.width = videoWidth;
-            canvas.height = videoHeight;
+        const targetWidth = Math.round(canvas.clientWidth * window.devicePixelRatio) || videoWidth;
+        const targetHeight = Math.round(canvas.clientHeight * window.devicePixelRatio) || videoHeight;
+
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
         }
 
         // ——— FIX #1: замораживаем значения реактивных переменных в плоские JS-переменные
@@ -431,7 +413,7 @@
         const _customStages = upscaleSettings.customPreset?.stages ? [...upscaleSettings.customPreset.stages] : [];
 
         const nativeDimensions = { width: videoWidth, height: videoHeight };
-        const targetDimensions = { width: videoWidth, height: videoHeight };
+        const targetDimensions = { width: targetWidth, height: targetHeight };
 
         const instance = await render({
             video,
@@ -442,10 +424,14 @@
                 }
 
                 // Пользовательский пресет (mode 20) — многоэтапный пайплайн
-                if (_mode === 20 && _customStages.length > 0) {
-                    return _customStages.map(stageMode =>
-                        new upscaleModeMap[stageMode]({ device, inputTexture, nativeDimensions, targetDimensions })
-                    );
+                if (_mode === 20) {
+                    if (_customStages.length > 0) {
+                        return _customStages.map(stageMode =>
+                            new upscaleModeMap[stageMode]({ device, inputTexture, nativeDimensions, targetDimensions })
+                        );
+                    } else {
+                        return [new Original({ device, inputTexture, nativeDimensions, targetDimensions })];
+                    }
                 }
 
                 // Стандартный одиночный шейдер

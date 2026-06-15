@@ -8,6 +8,7 @@
     import TitleElement from "../components/settings/TitleElement.svelte";
     import InfoElement from "../components/settings/InfoElement.svelte";
     import { localStorageWritable } from "@babichjacob/svelte-localstorage";
+    import utils from "../utils";
 
     let upscaleSettings;
 
