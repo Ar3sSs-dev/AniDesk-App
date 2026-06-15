@@ -62,10 +62,12 @@
         playingSettings,
         volPercent;
 
-    let defaultCanvasSize = {
-        width: screen.width,
-        height: screen.height,
-    };
+    // Аниме4К: храним текущий инстанс рендера чтобы убивать перед пересозданием
+    let currentAnime4kInstance = null;
+    // Debounce-таймер для ResizeObserver
+    let resizeDebounceTimer = null;
+    // ResizeObserver для отслеживания фактического размера канваса
+    let canvasResizeObserver = null;
 
     let video,
         canvas,
@@ -124,7 +126,13 @@
 
     async function changeUpscale(enabled) {
         upscaleEnabled = enabled;
-        await renderUpscale();
+        // Сохраняем состояние в localStorage — чтобы при перезаходе настройка не сбрасывалась
+        upscaleSettings.enabled = enabled;
+        upscaleSettingsRaw.set({ ...upscaleSettings });
+        // Только если видео уже загружено и разрешение известно
+        if (video && video.videoWidth > 0) {
+            await renderUpscale();
+        }
     }
 
     //aspect-16-9
@@ -178,6 +186,22 @@
             }
         }
 
+        // Уничтожаем Anime4K пайплайн перед выходом из плеера
+        if (currentAnime4kInstance) {
+            try { currentAnime4kInstance.destroy?.(); } catch(e) {}
+            currentAnime4kInstance = null;
+        }
+
+        // Останавливаем ResizeObserver
+        if (canvasResizeObserver) {
+            canvasResizeObserver.disconnect();
+            canvasResizeObserver = null;
+        }
+        if (resizeDebounceTimer) {
+            clearTimeout(resizeDebounceTimer);
+            resizeDebounceTimer = null;
+        }
+
         if (video) {
             video.pause();
             video.removeAttribute('src');
@@ -188,6 +212,8 @@
             video.onloadedmetadata = null;
             video.onwaiting = null;
             video.onplaying = null;
+            video.onended = null;
+            video.onerror = null;
             video = null;
         }
         if (hls) {
@@ -346,37 +372,81 @@
 
     async function renderUpscale() {
         canvas = await waitForElm(".player-canvas");
-        await render({
+
+        // Защита: если видео ещё не загрузило метаданные — не создаём пайплайн
+        if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+            return;
+        }
+
+        // Уничтожаем предыдущий инстанс, чтобы не плодить параллельные циклы рендера
+        if (currentAnime4kInstance) {
+            try { currentAnime4kInstance.destroy?.(); } catch(e) {}
+            currentAnime4kInstance = null;
+        }
+
+        // Синхронизируем физический размер канваса с его CSS-размером (с учётом DPR)
+        const dpr = window.devicePixelRatio || 1;
+        const displayWidth = Math.round(canvas.clientWidth * dpr);
+        const displayHeight = Math.round(canvas.clientHeight * dpr);
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+        }
+
+        const nativeDimensions = {
+            width: video.videoWidth,
+            height: video.videoHeight,
+        };
+        const targetDimensions = {
+            width: canvas.width,
+            height: canvas.height,
+        };
+
+        const instance = await render({
             video,
             canvas,
             pipelineBuilder: (device, inputTexture) => {
-                const nativeDimensions = {
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                };
+                if (!upscaleEnabled) {
+                    return [new Original({ device, inputTexture, nativeDimensions, targetDimensions })];
+                }
 
-                const targetDimensions = {
-                    width: defaultCanvasSize.width,
-                    height: defaultCanvasSize.height,
-                };
+                // Пользовательский пресет (mode 20) — многоэтапный пайплайн из нескольких шейдеров
+                if (upscaleSettings.mode === 20 && upscaleSettings.customPreset?.stages?.length > 0) {
+                    return upscaleSettings.customPreset.stages.map(stageMode =>
+                        new upscaleModeMap[stageMode]({ device, inputTexture, nativeDimensions, targetDimensions })
+                    );
+                }
 
+                // Стандартный режим — один шейдер
                 return [
-                    upscaleEnabled
-                        ? new upscaleModeMap[upscaleSettings.mode]({
-                              device,
-                              inputTexture,
-                              nativeDimensions,
-                              targetDimensions,
-                          })
-                        : new Original({
-                              device,
-                              inputTexture,
-                              nativeDimensions,
-                              targetDimensions,
-                          }),
+                    new upscaleModeMap[upscaleSettings.mode]({
+                        device,
+                        inputTexture,
+                        nativeDimensions,
+                        targetDimensions,
+                    }),
                 ];
             },
         });
+
+        // Сохраняем инстанс для последующей очистки
+        currentAnime4kInstance = instance;
+
+        // Следим за изменением реального размера канваса через ResizeObserver
+        // (точнее и экономнее чем window resize)
+        if (canvasResizeObserver) {
+            canvasResizeObserver.disconnect();
+        }
+        canvasResizeObserver = new ResizeObserver(() => {
+            // Debounce: пересоздаём пайплайн только через 200мс после окончания ресайза
+            if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+            resizeDebounceTimer = setTimeout(() => {
+                if (video && video.videoWidth > 0) {
+                    renderUpscale();
+                }
+            }, 200);
+        });
+        canvasResizeObserver.observe(canvas);
     }
 
     async function changeQuality(quality) {
@@ -415,7 +485,16 @@
             video.play();
         }
 
-        if (avaliableGPU) await renderUpscale();
+        // Перезапускаем апскейл только когда видео реально загрузится
+        if (avaliableGPU) {
+            hls.once(Hls.Events.MANIFEST_PARSED, async () => {
+                // Ждём появления метаданных видео
+                if (video.videoWidth === 0) {
+                    await new Promise(res => { video.addEventListener('loadedmetadata', res, { once: true }); });
+                }
+                await renderUpscale();
+            });
+        }
 
         args.src = url;
         args.currentQuality = quality;
@@ -486,7 +565,14 @@
             loading = false;
         };
 
-        if (avaliableGPU) await renderUpscale();
+        // Запускаем апскейл только после того, как видео сообщит своё разрешение
+        // Это устраняет Race Condition: video.videoWidth > 0 гарантировано
+        if (avaliableGPU) {
+            video.addEventListener('loadedmetadata', async () => {
+                await renderUpscale();
+            }, { once: true });
+        }
+
         await video.play();
 
         window.onwheel = (e) => {
