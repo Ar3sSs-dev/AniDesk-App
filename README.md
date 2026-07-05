@@ -38,11 +38,3 @@
 1. Перейдите в раздел **[Releases](https://github.com/Ar3sSs-dev/re-AniDesk/releases)**.
 2. Скачайте последнюю версию (установщик `anidesk-*-win32.exe` из раздела `Assets`).
 3. Запустите установщик.
-
-### 💻 Быстрая установка (PowerShell)
-
-Для скачивания и запуска установщика версии `2.1.1` одной командой, выполните в PowerShell:
-
-```powershell
-Invoke-WebRequest -Uri "https://github.com/Ar3sSs-dev/re-AniDesk/releases/download/v2.1.1/anidesk-2.1.1-win32.exe" -OutFile "$env:TEMP\anidesk_setup.exe"; Start-Process "$env:TEMP\anidesk_setup.exe"
-```
