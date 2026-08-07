@@ -3,7 +3,7 @@
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-1/70_Safe_(False_Positive)-success?logo=virustotal)](https://www.virustotal.com/gui/file/5786cce8c4ff1a617cc2acf0f1e8f710fdb3415403aa5bb0ae476448125dad4c/detection)
 
 ![Интерфейс AniDesk](public/assets/images/screenshot.png)
-
+### Поект переехал на другой репозиторий: https://github.com/Ar3sSs-dev/re-AniDesk
 Неофициальный десктопный клиент для просмотра аниме на базе AniDesk (Anixart API).
 Эта версия включает эксклюзивные визуальные изменения, оффлайн-режим и расширенные возможности плеера, а также встроенный обход блокировок (CDN-прокси) для бесперебойной загрузки контента.
 
